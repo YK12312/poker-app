@@ -27,7 +27,7 @@ h2 {
   margin: 8px 0;
 }
 
-/* ボタン（スマホ押しやすく） */
+/* ボタン */
 button {
   padding: 12px;
   font-size: 14px;
@@ -36,7 +36,7 @@ button {
   border-radius:8px;
   background:#007bff;
   color:white;
-  min-height: 44px; /* iPhone対策 */
+  min-height: 44px;
 }
 
 /* テーブルコンテナ */
@@ -44,7 +44,7 @@ button {
   border: 2px solid #ddd;
   padding: 10px;
   margin-bottom: 20px;
-  overflow-x:auto; /* 横スクロール */
+  overflow-x:auto;
   background:white;
   border-radius:10px;
 }
@@ -52,7 +52,7 @@ button {
 /* テーブル */
 table {
   border-collapse: collapse;
-  min-width: 700px; /* スマホでも崩さない */
+  min-width: 700px;
 }
 
 td, th {
@@ -63,10 +63,25 @@ td, th {
   white-space: nowrap;
 }
 
-/* 入力（最重要：タップしやすく） */
+/* 🔥 名前列固定（追加） */
+td:first-child,
+th:first-child {
+  position: sticky;
+  left: 0;
+  background: #fff;
+  z-index: 2;
+  border-right: 2px solid #999;
+}
+
+/* ヘッダーの名前はさらに前面 */
+th:first-child {
+  z-index: 3;
+}
+
+/* 入力 */
 input {
   width: 70px;
-  font-size: 16px; /* iOSズーム防止 */
+  font-size: 16px;
   padding: 6px;
   text-align:center;
   border-radius:4px;
@@ -92,7 +107,7 @@ input {
 .overall-minus { color: red; font-weight:bold; }
 .overall-zero { color: black; font-weight:bold; }
 
-/* スマホ最適化 */
+/* スマホ */
 @media (max-width:600px){
   h2 { font-size: 16px; }
 
@@ -116,7 +131,6 @@ input {
   }
 }
 </style>
-
 </head>
 
 <body>
@@ -142,7 +156,6 @@ const defaultNames = [
   "あつき","あやき","ゆうと","かいま","しょうた"
 ];
 
-// ================= storage =================
 function getTables(){
   return JSON.parse(localStorage.getItem("tables")) || [];
 }
@@ -151,7 +164,6 @@ function saveTables(t){
   localStorage.setItem("tables", JSON.stringify(t));
 }
 
-// ================= 初期化 =================
 window.onload = () => {
   let tables = getTables();
 
@@ -168,7 +180,6 @@ window.onload = () => {
   renderAll();
 };
 
-// ================= テーブル追加 =================
 function addTable(){
   const tables = getTables();
 
@@ -183,7 +194,6 @@ function addTable(){
   renderAll();
 }
 
-// ================= プレイヤー追加 =================
 function addPlayer(idx){
   const name = prompt("プレイヤー名を入力してください");
   if(!name || !name.trim()) return;
@@ -199,7 +209,6 @@ function addPlayer(idx){
   renderAll();
 }
 
-// ================= 描画 =================
 function renderAll(){
   const tables = getTables();
   const container = document.getElementById("tables");
@@ -221,7 +230,6 @@ function renderAll(){
   if(overallVisible) renderOverall();
 }
 
-// ================= テーブル描画 =================
 function renderTable(idx, names, data){
   const table = document.getElementById(`table-${idx}`);
 
@@ -256,7 +264,6 @@ function renderTable(idx, names, data){
   update(idx);
 }
 
-// ================= 更新 =================
 function update(idx){
   const tables = getTables();
   const table = document.getElementById(`table-${idx}`);
@@ -303,7 +310,6 @@ function update(idx){
   if(overallVisible) renderOverall();
 }
 
-// ================= 総合収支 =================
 function toggleOverall(){
   overallVisible = !overallVisible;
   document.getElementById("overall").style.display =
@@ -336,7 +342,6 @@ function renderOverall(){
       }).join("");
 }
 
-// ================= 精算 =================
 function calculateSettlement(idx,names){
   const tables = getTables();
   const data = tables[idx].data;
@@ -377,7 +382,6 @@ function calculateSettlement(idx,names){
     res.length ? res.join("") : "精算なし";
 }
 
-// ================= リセット =================
 function resetAll(){
   if(!confirm("初期化する？")) return;
 
