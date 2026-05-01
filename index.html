@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>ポーカー収支管理</title>
+
+<style>
+body {
+  font-family: sans-serif;
+  padding: 10px;
+  margin: 0;
+  background:#fafafa;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* ヘッダー */
+.header {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  flex-wrap: wrap;
+}
+
+h2 {
+  font-size: 18px;
+  margin: 8px 0;
+}
+
+/* ボタン（スマホ押しやすく） */
+button {
+  padding: 12px;
+  font-size: 14px;
+  margin: 5px 5px 5px 0;
+  border:none;
+  border-radius:8px;
+  background:#007bff;
+  color:white;
+  min-height: 44px; /* iPhone対策 */
+}
+
+/* テーブルコンテナ */
+.table-box {
+  border: 2px solid #ddd;
+  padding: 10px;
+  margin-bottom: 20px;
+  overflow-x:auto; /* 横スクロール */
+  background:white;
+  border-radius:10px;
+}
+
+/* テーブル */
+table {
+  border-collapse: collapse;
+  min-width: 700px; /* スマホでも崩さない */
+}
+
+td, th {
+  border: 1px solid #ccc;
+  padding: 6px;
+  text-align: center;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+/* 入力（最重要：タップしやすく） */
+input {
+  width: 70px;
+  font-size: 16px; /* iOSズーム防止 */
+  padding: 6px;
+  text-align:center;
+  border-radius:4px;
+  border:1px solid #ccc;
+}
+
+/* 色 */
+.plus { color: green; font-weight:bold; }
+.minus { color: red; font-weight:bold; }
+.ok { color: green; font-weight:bold; }
+.ng { color: red; font-weight:bold; }
+
+.pay { color: red; font-weight:bold; }
+.receive { color: green; font-weight:bold; }
+
+/* 総合収支 */
+#overall div {
+  font-size: 16px;
+  margin: 6px 0;
+}
+
+.overall-plus { color: green; font-weight:bold; }
+.overall-minus { color: red; font-weight:bold; }
+.overall-zero { color: black; font-weight:bold; }
+
+/* スマホ最適化 */
+@media (max-width:600px){
+  h2 { font-size: 16px; }
+
+  button {
+    font-size: 13px;
+    padding: 10px;
+  }
+
+  input{
+    width: 55px;
+    font-size: 16px;
+  }
+
+  td,th{
+    font-size:11px;
+    padding:5px;
+  }
+
+  table{
+    min-width: 600px;
+  }
+}
+</style>
+
+</head>
+
+<body>
+
+<div class="header">
+  <h2>ポーカー収支管理</h2>
+  <button onclick="resetAll()">リセット</button>
+</div>
+
+<button onclick="toggleOverall()">総合収支</button>
+<div id="overall" style="display:none;"></div>
+
+<button onclick="addTable()">＋ テーブル追加</button>
+
+<div id="tables"></div>
+
+<script>
+const games = 10;
+let overallVisible = false;
+
+const defaultNames = [
+  "しゅん","かいと","こうた","えいけ","こうせい",
+  "あつき","あやき","ゆうと","かいま","しょうた"
+];
+
+// ================= storage =================
+function getTables(){
+  return JSON.parse(localStorage.getItem("tables")) || [];
+}
+
+function saveTables(t){
+  localStorage.setItem("tables", JSON.stringify(t));
+}
+
+// ================= 初期化 =================
+window.onload = () => {
+  let tables = getTables();
+
+  if(!tables.length){
+    tables = [{
+      names:[...defaultNames],
+      data:Array.from({ length: defaultNames.length }, () =>
+        Array.from({ length: games }, () => "")
+      )
+    }];
+    saveTables(tables);
+  }
+
+  renderAll();
+};
+
+// ================= テーブル追加 =================
+function addTable(){
+  const tables = getTables();
+
+  tables.push({
+    names:[...defaultNames],
+    data:Array.from({ length: defaultNames.length }, () =>
+      Array.from({ length: games }, () => "")
+    )
+  });
+
+  saveTables(tables);
+  renderAll();
+}
+
+// ================= プレイヤー追加 =================
+function addPlayer(idx){
+  const name = prompt("プレイヤー名を入力してください");
+  if(!name || !name.trim()) return;
+
+  const tables = getTables();
+
+  tables[idx].names.push(name.trim());
+  tables[idx].data.push(
+    Array.from({ length: games }, () => "")
+  );
+
+  saveTables(tables);
+  renderAll();
+}
+
+// ================= 描画 =================
+function renderAll(){
+  const tables = getTables();
+  const container = document.getElementById("tables");
+  container.innerHTML = "";
+
+  tables.forEach((t, index) => {
+    container.innerHTML += `
+      <div class="table-box">
+        <h3>テーブル ${index + 1}</h3>
+        <button onclick="addPlayer(${index})">＋ プレイヤー</button>
+        <table id="table-${index}"></table>
+        <p id="status-${index}"></p>
+        <div id="settlement-${index}"></div>
+      </div>
+    `;
+    renderTable(index, t.names, t.data);
+  });
+
+  if(overallVisible) renderOverall();
+}
+
+// ================= テーブル描画 =================
+function renderTable(idx, names, data){
+  const table = document.getElementById(`table-${idx}`);
+
+  let html = "<tr><th>名前</th>";
+
+  for(let g=1; g<=games; g++){
+    html += `<th>${g}</th>`;
+  }
+
+  html += "<th>合計</th></tr>";
+
+  names.forEach((name, r) => {
+    html += "<tr>";
+    html += `<td>${name}</td>`;
+
+    for(let c=0; c<games; c++){
+      html += `
+        <td>
+          <input type="number"
+            value="${data[r][c] ?? ""}"
+            oninput="update(${idx})">
+        </td>`;
+    }
+
+    const sum = data[r].reduce((a,b)=>a + (Number(b)||0), 0);
+    html += `<td class="${sum>=0?'plus':'minus'}">${sum}</td>`;
+
+    html += "</tr>";
+  });
+
+  table.innerHTML = html;
+  update(idx);
+}
+
+// ================= 更新 =================
+function update(idx){
+  const tables = getTables();
+  const table = document.getElementById(`table-${idx}`);
+
+  const names = tables[idx].names;
+  const inputs = table.querySelectorAll("input");
+
+  let data = Array.from({ length: names.length }, () =>
+    Array.from({ length: games }, () => "")
+  );
+
+  let i = 0;
+
+  for(let r=0;r<names.length;r++){
+    for(let c=0;c<games;c++){
+      const v = inputs[i].value;
+      data[r][c] = v === "" ? "" : Number(v);
+      i++;
+    }
+  }
+
+  tables[idx].data = data;
+  saveTables(tables);
+
+  let grand = 0;
+
+  const rows = table.querySelectorAll("tr");
+
+  names.forEach((_, r) => {
+    const sum = data[r].reduce((a,b)=>a + (Number(b)||0), 0);
+    grand += sum;
+
+    const cell = rows[r + 1].querySelector("td:last-child");
+    cell.textContent = sum;
+    cell.className = sum >= 0 ? "plus" : "minus";
+  });
+
+  const status = document.getElementById(`status-${idx}`);
+  status.textContent = grand === 0 ? "✔ OK" : `✖ ズレあり（${grand}円）`;
+  status.className = grand === 0 ? "ok" : "ng";
+
+  calculateSettlement(idx, names);
+
+  if(overallVisible) renderOverall();
+}
+
+// ================= 総合収支 =================
+function toggleOverall(){
+  overallVisible = !overallVisible;
+  document.getElementById("overall").style.display =
+    overallVisible ? "block" : "none";
+
+  if(overallVisible) renderOverall();
+}
+
+function renderOverall(){
+  const tables = getTables();
+  let totals = {};
+
+  tables.forEach(t=>{
+    t.names.forEach((n,i)=>{
+      if(!n) return;
+      totals[n] = (totals[n]||0) +
+        t.data[i].reduce((a,b)=>a + (Number(b)||0), 0);
+    });
+  });
+
+  document.getElementById("overall").innerHTML =
+    Object.entries(totals)
+      .map(([n,v])=>{
+        let cls =
+          v>0 ? "overall-plus" :
+          v<0 ? "overall-minus" :
+          "overall-zero";
+
+        return `<div class="${cls}">${n}：${v}円</div>`;
+      }).join("");
+}
+
+// ================= 精算 =================
+function calculateSettlement(idx,names){
+  const tables = getTables();
+  const data = tables[idx].data;
+
+  let totals = data.map(r =>
+    r.reduce((a,b)=>a + (Number(b)||0), 0)
+  );
+
+  let win=[], lose=[];
+
+  totals.forEach((v,i)=>{
+    if(v>0) win.push({n:names[i],a:v});
+    if(v<0) lose.push({n:names[i],a:-v});
+  });
+
+  let res=[];
+
+  while(win.length && lose.length){
+    let pay = Math.min(win[0].a, lose[0].a);
+
+    res.push(`
+      <div>
+        <span class="pay">${lose[0].n}</span>
+        →
+        <span class="receive">${win[0].n}</span>
+        ：${pay}円
+      </div>
+    `);
+
+    win[0].a -= pay;
+    lose[0].a -= pay;
+
+    if(win[0].a===0) win.shift();
+    if(lose[0].a===0) lose.shift();
+  }
+
+  document.getElementById(`settlement-${idx}`).innerHTML =
+    res.length ? res.join("") : "精算なし";
+}
+
+// ================= リセット =================
+function resetAll(){
+  if(!confirm("初期化する？")) return;
+
+  const tables = [{
+    names:[...defaultNames],
+    data:Array.from({ length: defaultNames.length }, () =>
+      Array.from({ length: games }, () => "")
+    )
+  }];
+
+  saveTables(tables);
+  renderAll();
+}
+</script>
+
+</body>
+</html>
