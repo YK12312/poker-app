@@ -13,6 +13,23 @@ body {
   background:#fafafa;
 }
 
+/* ★ 上部固定 */
+.top-fixed {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  background:#fafafa;
+  z-index: 1000;
+  padding:10px;
+  border-bottom:1px solid #ddd;
+}
+
+/* ★ 固定分の余白 */
+#tables {
+  margin-top: 180px;
+}
+
 .header {
   display:flex;
   justify-content:space-between;
@@ -81,6 +98,11 @@ input {
 .pay { color: red; }
 .receive { color: green; }
 
+/* ★ 総合収支色 */
+.overall-plus { color: green; font-weight:bold; }
+.overall-minus { color: red; font-weight:bold; }
+.overall-zero { color: black; font-weight:bold; }
+
 #overall div {
   font-size: 16px;
   margin: 6px 0;
@@ -90,18 +112,20 @@ input {
 
 <body>
 
-<div class="header">
-  <h2>ポーカー収支管理</h2>
-  <div>
-    <button onclick="saveAll()">保存</button>
-    <button onclick="resetAll()">リセット</button>
+<div class="top-fixed">
+  <div class="header">
+    <h2>ポーカー収支管理</h2>
+    <div>
+      <button onclick="saveAll()">保存</button>
+      <button onclick="resetAll()">リセット</button>
+    </div>
   </div>
+
+  <button onclick="toggleOverall()">総合収支</button>
+  <button onclick="addTable()">＋ テーブル追加</button>
+
+  <div id="overall" style="display:none;"></div>
 </div>
-
-<button onclick="toggleOverall()">総合収支</button>
-<div id="overall" style="display:none;"></div>
-
-<button onclick="addTable()">＋ テーブル追加</button>
 
 <div id="tables"></div>
 
@@ -169,8 +193,10 @@ function saveAll(){
   alert("保存しました");
 }
 
-/* テーブル追加 */
+/* ★ 修正ポイント：先に保存してから追加 */
 function addTable(){
+  saveAll(); // ←これが重要
+
   const tables = getTables();
 
   tables.push({
@@ -236,7 +262,7 @@ function renderTable(idx, names, data){
     html += `<td>${name}</td>`;
 
     for(let c=0; c<games; c++){
-      html += `<td><input type="number" value="${data[r][c] ?? ""}"></td>`;
+      html += `<td><input type="number" value="${data[r][c] ?? ""}" oninput="updateDisplay(${idx})"></td>`;
     }
 
     const sum = data[r].reduce((a,b)=>a + (Number(b)||0), 0);
@@ -248,41 +274,47 @@ function renderTable(idx, names, data){
   updateDisplay(idx);
 }
 
-/* 表示更新（保存しない） */
+/* 表示更新 */
 function updateDisplay(idx){
-  const tables = getTables();
   const table = document.getElementById(`table-${idx}`);
-  const data = tables[idx].data;
+  const inputs = table.querySelectorAll("input");
+  const tables = getTables();
   const names = tables[idx].names;
 
+  let i = 0;
   let grand = 0;
   const rows = table.querySelectorAll("tr");
 
-  names.forEach((_, r) => {
-    const sum = data[r].reduce((a,b)=>a + (Number(b)||0), 0);
+  let tempTotals = [];
+
+  for(let r=0; r<names.length; r++){
+    let sum = 0;
+
+    for(let c=0; c<games; c++){
+      const v = inputs[i].value;
+      sum += Number(v) || 0;
+      i++;
+    }
+
+    tempTotals.push(sum);
     grand += sum;
 
     const cell = rows[r + 1].querySelector("td:last-child");
     cell.textContent = sum;
     cell.className = sum >= 0 ? "plus" : "minus";
-  });
+  }
 
   const status = document.getElementById(`status-${idx}`);
   status.textContent = grand === 0 ? "✔ OK" : `✖ ズレあり（${grand}円）`;
   status.className = grand === 0 ? "ok" : "ng";
 
-  calculateSettlement(idx, names);
+  calculateSettlement(idx, names, tempTotals);
+
+  if(overallVisible) renderOverall();
 }
 
 /* 精算 */
-function calculateSettlement(idx,names){
-  const tables = getTables();
-  const data = tables[idx].data;
-
-  let totals = data.map(r =>
-    r.reduce((a,b)=>a + (Number(b)||0), 0)
-  );
-
+function calculateSettlement(idx,names,totals){
   let win=[], lose=[];
 
   totals.forEach((v,i)=>{
@@ -309,29 +341,50 @@ function calculateSettlement(idx,names){
 }
 
 /* 総合収支 */
+function renderOverall(){
+  const tables = getTables();
+  let totals = {};
+
+  tables.forEach((t, idx)=>{
+    const table = document.getElementById(`table-${idx}`);
+    if(!table) return;
+
+    const inputs = table.querySelectorAll("input");
+    const names = t.names;
+
+    let i = 0;
+
+    for(let r=0; r<names.length; r++){
+      let sum = 0;
+
+      for(let c=0; c<games; c++){
+        sum += Number(inputs[i]?.value) || 0;
+        i++;
+      }
+
+      totals[names[r]] = (totals[names[r]]||0) + sum;
+    }
+  });
+
+  document.getElementById("overall").innerHTML =
+    Object.entries(totals)
+      .map(([n,v])=>{
+        let cls =
+          v>0 ? "overall-plus" :
+          v<0 ? "overall-minus" :
+          "overall-zero";
+
+        return `<div class="${cls}">${n}：${v}円</div>`;
+      }).join("");
+}
+
+/* 表示切替 */
 function toggleOverall(){
   overallVisible = !overallVisible;
   document.getElementById("overall").style.display =
     overallVisible ? "block" : "none";
 
   if(overallVisible) renderOverall();
-}
-
-function renderOverall(){
-  const tables = getTables();
-  let totals = {};
-
-  tables.forEach(t=>{
-    t.names.forEach((n,i)=>{
-      totals[n] = (totals[n]||0) +
-        t.data[i].reduce((a,b)=>a + (Number(b)||0), 0);
-    });
-  });
-
-  document.getElementById("overall").innerHTML =
-    Object.entries(totals)
-      .map(([n,v])=>`<div>${n}：${v}円</div>`)
-      .join("");
 }
 
 /* リセット */
@@ -342,7 +395,7 @@ function resetAll(){
   location.reload();
 }
 
-/* Safari対策（ページ離脱時保存） */
+/* Safari対策 */
 window.addEventListener("pagehide", saveAll);
 </script>
 
