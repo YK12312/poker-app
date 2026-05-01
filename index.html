@@ -11,7 +11,6 @@ body {
   padding: 10px;
   margin: 0;
   background:#fafafa;
-  -webkit-text-size-adjust: 100%;
 }
 
 .header {
@@ -34,7 +33,6 @@ button {
   border-radius:8px;
   background:#007bff;
   color:white;
-  min-height: 44px;
 }
 
 .table-box {
@@ -65,61 +63,20 @@ th:first-child {
   left: 0;
   background: #fff;
   z-index: 2;
-  border-right: 2px solid #999;
-}
-
-th:first-child {
-  z-index: 3;
 }
 
 input {
   width: 70px;
-  font-size: 16px;
-  padding: 6px;
   text-align:center;
-  border-radius:4px;
-  border:1px solid #ccc;
 }
 
 .plus { color: green; font-weight:bold; }
 .minus { color: red; font-weight:bold; }
-.ok { color: green; font-weight:bold; }
-.ng { color: red; font-weight:bold; }
+.ok { color: green; }
+.ng { color: red; }
 
-.pay { color: red; font-weight:bold; }
-.receive { color: green; font-weight:bold; }
-
-#overall div {
-  font-size: 16px;
-  margin: 6px 0;
-}
-
-.overall-plus { color: green; font-weight:bold; }
-.overall-minus { color: red; font-weight:bold; }
-.overall-zero { color: black; font-weight:bold; }
-
-@media (max-width:600px){
-  h2 { font-size: 16px; }
-
-  button {
-    font-size: 13px;
-    padding: 10px;
-  }
-
-  input{
-    width: 55px;
-    font-size: 16px;
-  }
-
-  td,th{
-    font-size:11px;
-    padding:5px;
-  }
-
-  table{
-    min-width: 600px;
-  }
-}
+.pay { color: red; }
+.receive { color: green; }
 </style>
 </head>
 
@@ -146,32 +103,32 @@ const defaultNames = [
   "あつき","あやき","ゆうと","かいま","しょうた"
 ];
 
+/* ★ 安定版 */
 function getTables(){
-  return JSON.parse(localStorage.getItem("tables")) || [];
-}
-
-function saveTables(t){
   try {
-    localStorage.setItem("tables", JSON.stringify(t));
-  } catch(e) {
-    console.error("保存失敗", e);
+    const data = JSON.parse(localStorage.getItem("tables"));
+    return Array.isArray(data) ? data : [];
+  } catch {
+    return [];
   }
 }
 
-/* ★ 修正ポイント：ここ */
-window.addEventListener("DOMContentLoaded", () => {
-  let tables = localStorage.getItem("tables");
+function saveTables(t){
+  localStorage.setItem("tables", JSON.stringify(t));
+}
 
-  if (tables) {
-    tables = JSON.parse(tables);
-  } else {
+/* ★ 初期化（統一） */
+window.addEventListener("DOMContentLoaded", () => {
+  let tables = getTables();
+
+  if (!tables.length) {
     tables = [{
       names:[...defaultNames],
       data:Array.from({ length: defaultNames.length }, () =>
         Array.from({ length: games }, () => "")
       )
     }];
-    localStorage.setItem("tables", JSON.stringify(tables));
+    saveTables(tables);
   }
 
   renderAll();
@@ -258,9 +215,9 @@ function renderTable(idx, names, data){
   });
 
   table.innerHTML = html;
-  update(idx);
 }
 
+/* ★ 更新 */
 function update(idx){
   const tables = getTables();
   const table = document.getElementById(`table-${idx}`);
@@ -285,25 +242,7 @@ function update(idx){
   tables[idx].data = data;
   saveTables(tables);
 
-  let grand = 0;
-  const rows = table.querySelectorAll("tr");
-
-  names.forEach((_, r) => {
-    const sum = data[r].reduce((a,b)=>a + (Number(b)||0), 0);
-    grand += sum;
-
-    const cell = rows[r + 1].querySelector("td:last-child");
-    cell.textContent = sum;
-    cell.className = sum >= 0 ? "plus" : "minus";
-  });
-
-  const status = document.getElementById(`status-${idx}`);
-  status.textContent = grand === 0 ? "✔ OK" : `✖ ズレあり（${grand}円）`;
-  status.className = grand === 0 ? "ok" : "ng";
-
-  calculateSettlement(idx, names);
-
-  if(overallVisible) renderOverall();
+  renderAll(); // ★これで復元保証
 }
 
 function toggleOverall(){
@@ -330,9 +269,8 @@ function renderOverall(){
     Object.entries(totals)
       .map(([n,v])=>{
         let cls =
-          v>0 ? "overall-plus" :
-          v<0 ? "overall-minus" :
-          "overall-zero";
+          v>0 ? "plus" :
+          v<0 ? "minus" : "";
 
         return `<div class="${cls}">${n}：${v}円</div>`;
       }).join("");
@@ -380,22 +318,15 @@ function calculateSettlement(idx,names){
 
 function resetAll(){
   if(!confirm("初期化する？")) return;
-
-  const tables = [{
-    names:[...defaultNames],
-    data:Array.from({ length: defaultNames.length }, () =>
-      Array.from({ length: games }, () => "")
-    )
-  }];
-
-  saveTables(tables);
-  renderAll();
+  localStorage.removeItem("tables");
+  location.reload();
 }
 
-/* ★ 保険：ページ離脱時にも保存 */
-window.addEventListener("beforeunload", () => {
-  const tables = getTables();
-  saveTables(tables);
+/* ★ スマホ対策 */
+document.addEventListener("visibilitychange", () => {
+  if(document.visibilityState==="hidden"){
+    saveTables(getTables());
+  }
 });
 </script>
 
